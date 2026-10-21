@@ -1,0 +1,4 @@
+*.tar.gz
+.ansible/
+.DS_Store
+out/

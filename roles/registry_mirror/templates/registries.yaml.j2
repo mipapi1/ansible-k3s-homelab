@@ -1,0 +1,17 @@
+# Managed by Ansible (role registry_mirror). k3s reads this at start.
+# Images from these registries are pulled from the copies in {{ registry_mirror_host }} first,
+# e.g. lscr.io/linuxserver/plex -> {{ registry_mirror_host }}/{{ registry_mirror_org }}/lscr.io/linuxserver/plex.
+# Missing copies (or Forgejo down) fall back to the upstream registry automatically.
+mirrors:
+{% for upstream in registry_mirror_upstreams %}
+  {{ upstream }}:
+    endpoint:
+      - "https://{{ registry_mirror_host }}"
+    rewrite:
+      "^(.*)$": "{{ registry_mirror_org }}/{{ upstream }}/$1"
+{% endfor %}
+configs:
+  {{ registry_mirror_host }}:
+    auth:
+      username: {{ registry_mirror_username }}
+      password: {{ registry_mirror_password }}

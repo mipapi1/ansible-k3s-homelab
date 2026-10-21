@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ansible:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install Ansible
+        run: pip install ansible-core==2.21.4
+      - name: Build and install this collection
+        run: |
+          ansible-galaxy collection build --output-path /tmp/build
+          ansible-galaxy collection install /tmp/build/*.tar.gz
+      - name: Install what the example playbook uses
+        run: |
+          ansible-galaxy collection install git+https://github.com/k3s-io/k3s-ansible.git,1.2.2 \
+            ansible.utils ansible.posix community.hashi_vault
+      - name: Render every template with example values
+        run: ansible-playbook -i localhost, -c local tests/render.yml -e @tests/vars.yml
+      - name: Syntax-check the example playbook
+        working-directory: examples
+        run: ansible-playbook -i inventory.yml site.yml --syntax-check
+
+  secrets:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Scan for secrets (gitleaks)
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose

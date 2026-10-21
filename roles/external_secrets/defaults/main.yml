@@ -1,0 +1,11 @@
+---
+# https://github.com/external-secrets/external-secrets/releases
+external_secrets_chart_version: "2.12.0"
+# Vault as seen from inside the cluster
+external_secrets_vault_server: "https://vault.{{ homelab_domain }}"
+# KV version 2 secrets engine the ExternalSecrets read from
+external_secrets_vault_kv_mount: secret
+# Vault side (configured by hand, see the README): auth/kubernetes + the role below, with
+# a policy that grants read on secret/data/k8s/*
+external_secrets_vault_auth_mount: kubernetes
+external_secrets_vault_role: external-secrets

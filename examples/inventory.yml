@@ -1,0 +1,61 @@
+---
+# Three servers that also run workloads, behind a TCP load balancer for the API (6443)
+# and a TLS proxy for the web UIs (443 -> Traefik on every node).
+k3s_cluster:
+  children:
+    server:
+      hosts:
+        192.168.20.11:
+        192.168.20.12:
+        192.168.20.13:
+    agent:
+      hosts: {}
+
+  vars:
+    ansible_user: admin
+    # k3s.orchestration settings: https://github.com/k3s-io/k3s-ansible
+    k3s_version: v1.36.5+k3s1
+    api_endpoint: 192.168.20.10
+    # kubectl context on the control node; the add-on roles use it
+    cluster_context: homelab
+    server_config_yaml: |
+      tls-san:
+        - 192.168.20.10
+      # Longhorn replaces the local-path provisioner
+      disable:
+        - local-storage
+      # etcd shares each node's disk with Longhorn: tolerate short disk stalls instead of
+      # losing the leader lease (defaults: 100 ms heartbeat, 1 s election timeout)
+      etcd-arg:
+        - heartbeat-interval=500
+        - election-timeout=5000
+
+    # mipapi1.k3s_homelab: shared settings
+    homelab_domain: example.com
+    homelab_timezone: Europe/Berlin
+    # The repo Argo CD deploys apps/ from (here: Forgejo's in-cluster Service)
+    argocd_apps_repo: http://forgejo-http.forgejo.svc.cluster.local:3000/you/cluster.git
+    # NFS share for bulk data and Longhorn backups
+    nfs_server: 192.168.25.10
+    nfs_share: /volume1/kubernetes
+
+    # Role settings (see each role's defaults/main.yml)
+    authelia_smtp_address: submission://smtp.example.com:587
+    authelia_apps: [grafana-public, wiki]
+    monitoring_smtp_smarthost: smtp.example.com:587
+    monitoring_proxmox: true
+    monitoring_pve_target: 192.168.10.11
+
+    # Add-ons to install (see site.yml)
+    install_nfs_csi: true
+    install_longhorn: true
+    install_argocd: true
+    install_external_secrets: true
+    install_cloudnative_pg: true
+    install_forgejo: true
+    install_authelia: true
+    install_monitoring: true
+    install_headlamp: true
+    install_k3s_oidc: true
+    install_registry_mirror: false
+    install_igpu: false

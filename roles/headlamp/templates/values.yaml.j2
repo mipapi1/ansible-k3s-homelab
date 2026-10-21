@@ -1,0 +1,68 @@
+# Helm values for the headlamp chart (version pinned in ../defaults/main.yml), rendered
+# by Ansible.
+# Only what differs from the chart defaults; full reference:
+#   helm show values headlamp/headlamp --version <headlamp_chart_version>
+
+image:
+  # Keep in step with the chart version
+  tag: v0.45.0@sha256:db3f0e0fc58d358d41daa3fe7fc852437552c7ee873c3645470f7b86a8e0db49
+
+config:
+  # Shown as the cluster name in the UI
+  inClusterContextName: {{ headlamp_cluster_name }}
+  # The pasted token is kept in an HttpOnly cookie for this long (default 24h): one paste
+  # per browser per month, like Authelia's "Remember me"; Authelia's 2FA stays in front.
+  # Passed as an extra flag: the chart prints a large sessionTTL as 2.592e+06 (rejected by
+  # Headlamp), and its schema refuses a string. null drops the chart's own flag.
+  sessionTTL: null
+  extraArgs:
+    - -session-ttl=2592000
+  # Install/upgrade/roll back Helm releases from the UI
+  enableHelm: true
+  # Sign in with Authelia (OpenID Connect): settings from the headlamp-oidc Secret
+  # (oidc.yaml.j2). The API server trusts Authelia's ID tokens (k3s_oidc role), so Headlamp
+  # acts as you, with your RBAC (group admins = cluster-admin).
+  oidc:
+    secret:
+      create: false
+    externalSecret:
+      enabled: true
+      name: headlamp-oidc
+      hasScopes: true
+    # Not secret; the chart only adds these flags when they're set here (values come
+    # from the Secret)
+    callbackURL: https://{{ headlamp_host }}/oidc-callback
+    usePKCE: true
+    # Keep the tokens in an HttpOnly cookie, not in the browser's storage
+    useCookie: true
+
+# Headlamp's own service account gets no rights: every request runs with the token the
+# user signed in with (the chart default would make Headlamp itself cluster-admin).
+clusterRoleBinding:
+  create: false
+
+# https://{{ headlamp_host }} -> proxy (TLS) -> Traefik -> Authelia login (2FA) ->
+# Headlamp sign-in. Group `admins` gets in (Authelia's catch-all rule).
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: headlamp-authelia@kubernetescrd
+  hosts:
+    - host: {{ headlamp_host }}
+      paths:
+        - {path: /, type: Prefix}
+
+podSecurityContext:
+  seccompProfile: {type: RuntimeDefault}
+securityContext:
+  runAsNonRoot: true
+  privileged: false
+  runAsUser: 100
+  runAsGroup: 101
+  allowPrivilegeEscalation: false
+  capabilities: {drop: [ALL]}
+
+resources:
+  requests: {cpu: 10m, memory: 48Mi}
+  limits: {memory: 256Mi}

@@ -1,0 +1,15 @@
+---
+# Registry holding the copies (e.g. Forgejo's package registry, filled by a CI job that
+# copies upstream images to <registry_mirror_host>/<registry_mirror_org>/<upstream>/<path>)
+registry_mirror_host: "git.{{ homelab_domain }}"
+# Set when the nodes' DNS can't resolve registry_mirror_host (e.g. the nodes use public
+# DNS and the name only exists internally): its address, pinned in /etc/hosts.
+# null: rely on DNS.
+registry_mirror_ip: null
+registry_mirror_org: mirror
+# Upstream registries whose images are looked up in the mirror first
+registry_mirror_upstreams: [docker.io, ghcr.io, lscr.io]
+# Pull credentials (a read-only token, e.g. Forgejo scope read:package). Required; keep
+# the token in a secret store, e.g. a community.hashi_vault lookup in group_vars.
+registry_mirror_username: ""
+registry_mirror_password: ""

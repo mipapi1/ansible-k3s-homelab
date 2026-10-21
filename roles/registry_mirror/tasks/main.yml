@@ -1,0 +1,57 @@
+---
+# Runs on each k3s node, one at a time (serial: 1 in site.yml): k3s only reads
+# registries.yaml at start, so a change restarts k3s on that node. Running containers
+# keep running during the restart.
+- name: Check the registry credentials are set
+  ansible.builtin.assert:
+    that: [registry_mirror_username is truthy, registry_mirror_password is truthy]
+    fail_msg: Set registry_mirror_username and registry_mirror_password (a read-only token).
+    quiet: true
+  no_log: true
+
+- name: Pin {{ registry_mirror_host }} in /etc/hosts
+  when: registry_mirror_ip is truthy
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '\s{{ registry_mirror_host | regex_escape }}$'
+    line: "{{ registry_mirror_ip }} {{ registry_mirror_host }}"
+
+- name: Point containerd at the image mirror
+  ansible.builtin.template:
+    src: registries.yaml.j2
+    dest: /etc/rancher/k3s/registries.yaml
+    mode: "0600"
+  no_log: true
+  register: registry_mirror_config
+
+- name: Restart k3s on this node and wait until it is healthy again
+  when: registry_mirror_config.changed
+  block:
+    - name: Restart k3s
+      ansible.builtin.systemd:
+        name: k3s
+        state: restarted
+
+    - name: Wait for this node's API server to be ready (includes its etcd)
+      ansible.builtin.command: >-
+        kubectl --context {{ cluster_context }} --server https://{{ inventory_hostname }}:6443
+        get --raw /readyz
+      delegate_to: localhost
+      become: false
+      register: registry_mirror_readyz
+      until: registry_mirror_readyz.rc == 0 and registry_mirror_readyz.stdout == "ok"
+      retries: 60
+      delay: 5
+      changed_when: false
+
+    - name: Wait for the node to be Ready
+      ansible.builtin.command: >-
+        kubectl --context {{ cluster_context }} wait node/{{ ansible_facts['hostname'] }}
+        --for=condition=Ready --timeout=300s
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Give etcd a moment before the next node
+      ansible.builtin.pause:
+        seconds: 30

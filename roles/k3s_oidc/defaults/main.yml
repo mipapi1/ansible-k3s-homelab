@@ -1,0 +1,15 @@
+---
+# The API server accepts Authelia's ID tokens: people sign in to Kubernetes (Headlamp,
+# kubectl) with their Authelia account. Authelia's side: identity_providers in the
+# authelia role's template.
+k3s_oidc_issuer: "https://auth.{{ homelab_domain }}"
+# Authelia's OIDC clients whose tokens are accepted
+k3s_oidc_audiences: [headlamp, kubectl]
+# Users and groups appear in Kubernetes as authelia:<name> (no clash with built-in names)
+k3s_oidc_prefix: "authelia:"
+# Authelia group that gets cluster-admin
+k3s_oidc_admin_group: admins
+# Set when the nodes' DNS can't resolve the issuer (e.g. the nodes use public DNS and the
+# name only exists internally): the address the API server reaches Authelia at (the
+# ingress proxy), pinned in /etc/hosts. null: rely on DNS.
+k3s_oidc_issuer_ip: null

@@ -1,0 +1,14 @@
+---
+# Secrets come from Vault at run time (your `vault login` token), never from files.
+vault_addr: "{{ lookup('ansible.builtin.env', 'VAULT_ADDR') }}"
+
+# k3s cluster token (k3s.orchestration)
+k3s_vault_values: "{{ lookup('community.hashi_vault.vault_kv2_get', 'k3s/cluster',
+    engine_mount_point='secret', url=vault_addr, auth_method='token') }}"
+token: "{{ k3s_vault_values['secret']['token'] }}"
+
+# Image mirror pull token (role registry_mirror), e.g. a read:package Forgejo token
+# registry_mirror_values: "{{ lookup('community.hashi_vault.vault_kv2_get', 'k8s/forgejo/ci-bot',
+#     engine_mount_point='secret', url=vault_addr, auth_method='token') }}"
+# registry_mirror_username: ci-bot
+# registry_mirror_password: "{{ registry_mirror_values['secret']['pull-token'] }}"

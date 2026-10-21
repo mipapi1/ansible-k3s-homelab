@@ -1,0 +1,54 @@
+---
+# Renders every role template with its role's defaults and the values in vars.yml, and
+# checks that each result is valid YAML. Needs no cluster:
+#   ansible-playbook -i localhost, -c local tests/render.yml -e @tests/vars.yml
+- name: Render all role templates
+  hosts: localhost
+  gather_facts: false
+  vars:
+    roles_dir: "{{ playbook_dir }}/../roles"
+    out_dir: "{{ playbook_dir }}/out"
+  tasks:
+    - name: Find the templates
+      ansible.builtin.find:
+        paths: "{{ roles_dir }}"
+        patterns: "*.j2"
+        recurse: true
+      register: render_templates
+
+    - name: Find the role defaults
+      ansible.builtin.find:
+        paths: "{{ roles_dir }}"
+        patterns: main.yml
+        recurse: true
+      register: render_defaults
+
+    - name: Load every role's defaults
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: "{{ render_defaults.files | map(attribute='path') | select('search', '/defaults/') | sort }}"
+      loop_control:
+        label: "{{ item | relpath(roles_dir) }}"
+
+    - name: Create the output directory
+      ansible.builtin.file:
+        path: "{{ out_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Render
+      ansible.builtin.template:
+        src: "{{ item.path }}"
+        dest: "{{ out_dir }}/{{ item.path | dirname | dirname | basename }}-{{ item.path | basename | regex_replace('\\.j2$', '') }}"
+        mode: "0644"
+      loop: "{{ render_templates.files | sort(attribute='path') }}"
+      loop_control:
+        label: "{{ item.path | relpath(roles_dir) }}"
+
+    - name: Check that every result parses as YAML
+      ansible.builtin.assert:
+        that: (lookup('ansible.builtin.file', item) | from_yaml_all | list | length) > 0
+        quiet: true
+      loop: "{{ query('ansible.builtin.fileglob', out_dir ~ '/*') | sort }}"
+      loop_control:
+        label: "{{ item | basename }}"

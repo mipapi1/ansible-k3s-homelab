@@ -1,0 +1,15 @@
+---
+# ansible-galaxy collection install -r requirements.yml
+collections:
+  - name: https://github.com/mipapi1/ansible-k3s-homelab.git
+    type: git
+    version: v1.0.0
+  # Upstream k3s install: https://github.com/k3s-io/k3s-ansible
+  - name: https://github.com/k3s-io/k3s-ansible.git
+    type: git
+    version: 1.2.2
+  # k3s.orchestration uses ansible.utils.ipwrap but doesn't declare it
+  - name: ansible.utils
+  - name: ansible.posix
+  # Vault lookups in group_vars
+  - name: community.hashi_vault

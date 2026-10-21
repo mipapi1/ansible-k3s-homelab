@@ -1,0 +1,36 @@
+---
+# Runs on the control node against the cluster's kubeconfig context.
+- name: Install NFS CSI driver
+  kubernetes.core.helm:
+    name: csi-driver-nfs
+    chart_ref: csi-driver-nfs
+    chart_repo_url: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
+    chart_version: "{{ nfs_csi_chart_version }}"
+    release_namespace: kube-system
+    kube_context: "{{ cluster_context }}"
+    wait: true
+    values:
+      kubeletDir: /var/lib/kubelet
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# Bulk/shared data on the NAS. Not the default class — Longhorn is.
+- name: Apply NFS StorageClass
+  kubernetes.core.k8s:
+    context: "{{ cluster_context }}"
+    state: present
+    definition:
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: nfs-nas
+      provisioner: nfs.csi.k8s.io
+      parameters:
+        server: "{{ nfs_server }}"
+        share: "{{ nfs_share }}"
+      reclaimPolicy: Retain
+      volumeBindingMode: Immediate
+  delegate_to: localhost
+  become: false
+  run_once: true

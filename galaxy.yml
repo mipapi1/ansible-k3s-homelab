@@ -1,0 +1,22 @@
+namespace: mipapi1
+name: k3s_homelab
+version: 1.0.0
+readme: README.md
+authors:
+  - mipapi1
+description: >-
+  Roles for a k3s homelab platform: Argo CD, External Secrets (Vault), Forgejo,
+  Authelia with OIDC sign-in to Kubernetes, VictoriaMetrics monitoring, Headlamp,
+  Longhorn, NFS, an image mirror and Intel iGPU nodes.
+license:
+  - MIT
+tags: [k3s, kubernetes, homelab, gitops, argocd, forgejo, authelia, longhorn]
+dependencies:
+  kubernetes.core: ">=6.0.0"
+  community.general: ">=10.0.0"
+repository: https://github.com/mipapi1/ansible-k3s-homelab
+issues: https://github.com/mipapi1/ansible-k3s-homelab/issues
+build_ignore:
+  - .github
+  - examples
+  - .gitignore

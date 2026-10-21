@@ -1,0 +1,21 @@
+---
+# For VMs that get their host's Intel iGPU passed through (e.g. with the
+# terraform-proxmox-vm module), for hardware video transcoding. The Ubuntu cloud image's
+# "virtual" kernel has no GPU drivers, and its 6.8 kernel doesn't know newer GPUs such as
+# the N150's, so: the HWE kernel (generic flavour, includes i915/xe) plus the GPU
+# firmware. A new kernel needs a reboot, which is done node by node with a drain, never
+# by this role.
+- name: Install the HWE kernel and GPU firmware [Ubuntu]
+  when: ansible_facts['distribution'] == 'Ubuntu'
+  ansible.builtin.apt:
+    name:
+      - linux-generic-hwe-{{ ansible_facts['distribution_version'] }}
+      - linux-firmware
+    state: present
+    update_cache: true
+  register: igpu_packages
+
+- name: Note when a reboot is needed for the new kernel
+  when: igpu_packages is changed
+  ansible.builtin.debug:
+    msg: New kernel installed; drain and restart this node (stop/start from Proxmox) to use it.

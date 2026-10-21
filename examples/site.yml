@@ -1,0 +1,141 @@
+---
+# Example playbook: k3s via k3s.orchestration, then the add-ons of mipapi1.k3s_homelab.
+# Add-on plays are tagged, so one can be (re)deployed without re-running the k3s install
+# (which restarts every server):  ansible-playbook site.yml --tags external_secrets
+- name: Preflight - control node tools
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  tags: always
+  tasks:
+    - name: Check helm and kubectl are installed (add-on roles run them from here)
+      ansible.builtin.command: "{{ item }}"
+      loop:
+        - helm version --short
+        - kubectl version --client
+      changed_when: false
+
+- name: NFS client prep
+  hosts: k3s_cluster
+  gather_facts: true
+  become: true
+  tags: nfs
+  roles:
+    - role: mipapi1.k3s_homelab.nfs
+
+- name: iGPU drivers (VMs with a passed-through Intel GPU)
+  hosts: k3s_cluster
+  gather_facts: true
+  become: true
+  tags: igpu
+  roles:
+    - role: mipapi1.k3s_homelab.igpu
+      when: install_igpu | default(false)
+
+# Upstream k3s install (prereq, airgap, raspberrypi, k3s_server, k3s_agent)
+- name: Install k3s
+  ansible.builtin.import_playbook: k3s.orchestration.site
+
+- name: Setup NFS CSI driver
+  hosts: server[0]
+  gather_facts: false
+  become: false
+  tags: nfs_csi
+  roles:
+    - role: mipapi1.k3s_homelab.nfs_csi
+      when: install_nfs_csi | default(false)
+
+- name: Setup Longhorn
+  hosts: k3s_cluster
+  gather_facts: true
+  become: true
+  tags: longhorn
+  roles:
+    - role: mipapi1.k3s_homelab.longhorn
+      when: install_longhorn | default(false)
+
+- name: Setup Argo CD
+  hosts: server[0]
+  gather_facts: false
+  become: false
+  tags: argocd
+  roles:
+    - role: mipapi1.k3s_homelab.argocd
+      when: install_argocd | default(false)
+
+- name: Setup External Secrets Operator (Vault)
+  hosts: server[0]
+  gather_facts: false
+  become: false
+  tags: external_secrets
+  roles:
+    - role: mipapi1.k3s_homelab.external_secrets
+      when: install_external_secrets | default(false)
+
+- name: Setup CloudNativePG (PostgreSQL operator)
+  hosts: server[0]
+  gather_facts: false
+  become: false
+  tags: cloudnative_pg
+  roles:
+    - role: mipapi1.k3s_homelab.cloudnative_pg
+      when: install_cloudnative_pg | default(false)
+
+- name: Setup Forgejo (git server; Argo CD reads the apps from it)
+  hosts: server[0]
+  gather_facts: false
+  become: false
+  tags: forgejo
+  roles:
+    - role: mipapi1.k3s_homelab.forgejo
+      when: install_forgejo | default(false)
+
+- name: Setup Authelia (login portal with 2FA for the web UIs)
+  hosts: server[0]
+  gather_facts: false
+  become: false
+  tags: authelia
+  roles:
+    - role: mipapi1.k3s_homelab.authelia
+      when: install_authelia | default(false)
+
+# Restarts k3s one server at a time when its flag is first added (see the role)
+- name: Setup sign-in to Kubernetes with Authelia (OIDC)
+  hosts: server
+  serial: 1
+  gather_facts: true
+  become: true
+  tags: k3s_oidc
+  roles:
+    - role: mipapi1.k3s_homelab.k3s_oidc
+      when: install_k3s_oidc | default(false)
+
+- name: Setup monitoring (VictoriaMetrics, Grafana, alerts)
+  hosts: server[0]
+  gather_facts: false
+  become: false
+  tags: monitoring
+  roles:
+    - role: mipapi1.k3s_homelab.monitoring
+      when: install_monitoring | default(false)
+
+- name: Setup Headlamp (cluster UI)
+  hosts: server[0]
+  gather_facts: false
+  become: false
+  tags: headlamp
+  roles:
+    - role: mipapi1.k3s_homelab.headlamp
+      when: install_headlamp | default(false)
+
+# Restarts k3s one node at a time when the mirror settings change (see the role)
+- name: Setup the image mirror (pull from Forgejo's registry first)
+  hosts: k3s_cluster
+  serial: 1
+  gather_facts: true
+  become: true
+  tags: registry_mirror
+  roles:
+    - role: mipapi1.k3s_homelab.registry_mirror
+      when: install_registry_mirror | default(false)

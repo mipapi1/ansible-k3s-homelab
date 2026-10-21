@@ -1,0 +1,41 @@
+---
+# https://github.com/VictoriaMetrics/helm-charts/tree/master/charts/victoria-metrics-k8s-stack
+# Chart settings live in ../templates/values.yaml.j2
+monitoring_chart_version: "0.95.0"
+
+monitoring_grafana_host: "grafana.{{ homelab_domain }}"
+# Label on every series (vmagent externalLabels)
+monitoring_cluster_label: homelab
+# Kubelet health probes come from the nodes' own addresses, which Grafana's
+# NetworkPolicy must allow. Default: every k3s_cluster host, assuming inventory names
+# are IP addresses.
+monitoring_node_cidrs: "{{ homelab_node_cidrs | default(groups['k3s_cluster'] | map('regex_replace', '$', '/32') | list) }}"
+
+# Alerts go out by push (ntfy) and email. Secrets from Vault (KV paths under the
+# ClusterSecretStore's mount):
+#   <monitoring_vault_ntfy_key>   topic
+#   <monitoring_vault_smtp_key>   to (recipient), password
+monitoring_vault_ntfy_key: k8s/monitoring/ntfy
+monitoring_vault_smtp_key: k8s/monitoring/smtp
+monitoring_ntfy_server: https://ntfy.sh
+monitoring_smtp_smarthost: "smtp.example.com:587"
+monitoring_smtp_username: "noreply@{{ homelab_domain }}"
+monitoring_smtp_from: "Homelab <{{ monitoring_smtp_username }}>"
+# Nothing is sent during this daily window (nightly backups make nodes slow for a while);
+# whatever still fires at its end is sent then. Times in monitoring_timezone.
+monitoring_mute_window: {start: "03:00", end: "04:00"}
+monitoring_timezone: "{{ homelab_timezone | default('UTC') }}"
+
+# Proxmox: pve-exporter asks one Proxmox host for the whole cluster (all nodes, VMs,
+# storage) with a read-only token from Vault:
+#   <monitoring_vault_proxmox_key>   token-id (user@realm!name), token-secret
+monitoring_proxmox: false
+# https://github.com/prometheus-pve/prometheus-pve-exporter/releases
+monitoring_pve_exporter_image: prompve/prometheus-pve-exporter:3.10.1@sha256:5678b230735a80816755dc8b5e0fb139a6595e1d4271ace2d22ff82983d1bdf1
+monitoring_pve_target: ""
+monitoring_vault_proxmox_key: k8s/monitoring/proxmox
+
+# OPNsense's node_exporter (plugin os-node_exporter). Enable once the plugin is
+# installed, or its target shows as down.
+monitoring_opnsense_node_exporter: false
+monitoring_opnsense_target: ""

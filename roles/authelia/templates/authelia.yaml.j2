@@ -1,0 +1,400 @@
+# Authelia: one login portal (password + 2FA) in front of the homelab web UIs.
+# Traefik asks it on every request to a protected app (forwardAuth); without a valid
+# session the browser is sent to {{ authelia_url }}.
+{% set authelia_config %}
+server:
+  address: 'tcp://:9091/'
+  # The image's Docker HEALTHCHECK file can't be rewritten on a read-only root filesystem
+  # (startup then fails without a reason); Kubernetes probes /api/health instead.
+  disable_healthcheck: true
+log:
+  level: info
+# New users and new devices start with the authenticator-app code; a passkey stays
+# available under "Methods" (otherwise phones were offered passkey registration first)
+default_2fa_method: totp
+totp:
+  issuer: {{ authelia_totp_issuer }}
+webauthn:
+  display_name: Homelab
+authentication_backend:
+  # Users and password hashes come from Vault (read-only file): no self-service
+  # password changes or resets; change the hash in Vault instead.
+  password_change:
+    disable: true
+  password_reset:
+    disable: true
+  file:
+    path: /config/users/users_database.yml
+    watch: true
+    password:
+      algorithm: argon2
+access_control:
+  # Anything not explicitly allowed is refused. Only apps that use the Traefik
+  # middleware are protected at all. Per app (authelia_apps): admins and members of
+  # group app-<name> get in, with 2FA. Admins also get any other protected app.
+  default_policy: deny
+  rules:
+{% for app in authelia_apps %}
+    - domain: '{{ app }}.{{ authelia_cookie_domain }}'
+      subject: ['group:admins', 'group:app-{{ app }}']
+      policy: two_factor
+{% endfor %}
+    - domain: '*.{{ authelia_cookie_domain }}'
+      subject: 'group:admins'
+      policy: two_factor
+session:
+  cookies:
+    - domain: {{ authelia_cookie_domain }}
+      authelia_url: {{ authelia_url }}
+      # Without "Remember me": signed out after 1h without use, at the latest after 12h
+      expiration: 12h
+      inactivity: 1h
+      # With "Remember me" ticked at login: that browser stays signed in (2FA included)
+      # for 30 days, and the inactivity limit doesn't apply
+      remember_me: 1M
+  # Sessions live in Redis (below) with its data on a volume, so restarting or moving the
+  # Authelia pod no longer signs everyone out. Authelia encrypts them with session-secret.
+  redis:
+    host: redis.authelia.svc.cluster.local
+    port: 6379
+regulation:
+  # 5 failed logins within 10 minutes lock the account for 15 minutes
+  max_retries: 5
+  find_time: 10m
+  ban_time: 15m
+storage:
+  # 2FA devices and login history; encrypted with the storage key from Vault
+  local:
+    path: /data/db.sqlite3
+notifier:
+  smtp:
+    address: '{{ authelia_smtp_address }}'
+    username: {{ authelia_smtp_username }}
+    sender: '{{ authelia_smtp_sender }}'
+ntp:
+  # Report clock problems in the log instead of refusing to start
+  disable_failure: true
+# OpenID Connect provider: single sign-on for the Kubernetes API (Headlamp, kubectl). The
+# API server trusts ID tokens signed with jwks-key (k3s_oidc role). Secrets come from
+# files via Authelia's template filter (X_AUTHELIA_CONFIG_FILTERS): the `secret` calls
+# below are Authelia's (raw for Ansible). No double braces anywhere else in this config,
+# comments included: the filter parses the whole file.
+identity_providers:
+  oidc:
+    jwks:
+      - key_id: main
+        algorithm: RS256
+        use: sig
+        key: {% raw %}{{ secret "/secrets/oidc-jwks-key" | mindent 10 "|" | msquote }}{% endraw %}
+
+    authorization_policies:
+      # Only group admins may sign in; everyone else is refused before any token exists
+      admins:
+        default_policy: deny
+        rules:
+          - policy: two_factor
+            subject: 'group:admins'
+    claims_policies:
+      # Kubernetes reads the user and groups from the ID token itself (Authelia otherwise
+      # keeps those claims for the userinfo endpoint)
+      kubernetes:
+        id_token: [preferred_username, groups, email, email_verified, name]
+    clients:
+      - client_id: headlamp
+        client_name: Headlamp
+        client_secret: {% raw %}{{ secret "/secrets/oidc-headlamp-secret-hash" | msquote }}{% endraw %}
+
+        public: false
+        authorization_policy: admins
+        # Ask once per browser, then remember for a year
+        consent_mode: pre-configured
+        pre_configured_consent_duration: 1y
+        require_pkce: true
+        pkce_challenge_method: S256
+        redirect_uris: ['{{ authelia_headlamp_redirect_uri }}']
+        scopes: [openid, offline_access, profile, email, groups]
+        grant_types: [authorization_code, refresh_token]
+        response_types: [code]
+        claims_policy: kubernetes
+        token_endpoint_auth_method: client_secret_basic
+      # kubectl on the Mac via kubelogin (kubectl oidc-login): opens the browser, no secret
+      - client_id: kubectl
+        client_name: kubectl
+        public: true
+        authorization_policy: admins
+        consent_mode: pre-configured
+        pre_configured_consent_duration: 1y
+        require_pkce: true
+        pkce_challenge_method: S256
+        redirect_uris: ['http://localhost:8000', 'http://localhost:18000']
+        scopes: [openid, offline_access, profile, email, groups]
+        grant_types: [authorization_code, refresh_token]
+        response_types: [code]
+        claims_policy: kubernetes
+        token_endpoint_auth_method: none
+{% endset %}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authelia
+  namespace: authelia
+data:
+  configuration.yml: |
+{{ authelia_config | indent(4, first=True) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: authelia-data
+  namespace: authelia
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources: {requests: {storage: 1Gi}}
+---
+# Session store. Append-only file on Longhorn, so sessions survive restarts of Redis too.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: authelia
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: authelia
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: redis}
+  template:
+    metadata:
+      labels: {app: redis}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        fsGroup: 999
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: redis
+          image: {{ authelia_redis_image }}
+          # Every write logged (fsync each second); a cache would drop sessions when full,
+          # so no eviction (a few hundred KiB in practice)
+          args: [--appendonly, "yes", --appendfsync, everysec, --save, "", --dir, /data,
+                 --maxmemory, 64mb, --maxmemory-policy, noeviction]
+          ports:
+            - {name: redis, containerPort: 6379}
+          readinessProbe:
+            exec: {command: [redis-cli, ping]}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: redis}
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {memory: 128Mi}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: redis-data}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: authelia
+spec:
+  selector: {app: redis}
+  ports:
+    - {name: redis, port: 6379, targetPort: redis}
+---
+# Only Authelia may talk to Redis (it has no password; the sessions in it are encrypted)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis
+  namespace: authelia
+spec:
+  podSelector:
+    matchLabels: {app: redis}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app: authelia}
+      ports:
+        - {protocol: TCP, port: 6379}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authelia
+  namespace: authelia
+spec:
+  # SQLite: one instance
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: authelia}
+  template:
+    metadata:
+      labels: {app: authelia}
+      annotations:
+        # Restart when the configuration changes
+        homelab/config-hash: "{{ authelia_config | hash('sha256') | truncate(12, True, '') }}"
+    spec:
+      automountServiceAccountToken: false
+      # Without this, Kubernetes injects AUTHELIA_PORT, AUTHELIA_SERVICE_HOST, ... for the
+      # Service named "authelia", and Authelia reads every AUTHELIA_* variable as config
+      # (AUTHELIA_PORT becomes the deprecated `port` and clashes with server.address).
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 8000
+        runAsGroup: 8000
+        runAsNonRoot: true
+        fsGroup: 8000
+        seccompProfile: {type: RuntimeDefault}
+      initContainers:
+        # Kubernetes updates a mounted Secret by swapping a symlink, which Authelia's file
+        # watcher misses (new users only appeared after a restart). So Authelia reads a
+        # plain copy on an emptyDir, and users-sync rewrites it in place whenever the
+        # Secret changes; the watcher sees that write and reloads the users without a
+        # restart.
+        - name: users-sync
+          image: {{ authelia_image }}
+          restartPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              cp /users-src/users_database.yml /config/users/users_database.yml
+              while true; do
+                cmp -s /users-src/users_database.yml /config/users/users_database.yml ||
+                  { cat /users-src/users_database.yml > /config/users/users_database.yml; echo "users updated"; }
+                sleep 20
+              done
+          # Authelia starts only once the first copy is in place
+          startupProbe:
+            exec: {command: [sh, -c, "test -s /config/users/users_database.yml"]}
+            periodSeconds: 1
+            failureThreshold: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 1m, memory: 4Mi}
+            limits: {memory: 16Mi}
+          volumeMounts:
+            - {name: users-src, mountPath: /users-src, readOnly: true}
+            - {name: users, mountPath: /config/users}
+      containers:
+        - name: authelia
+          image: {{ authelia_image }}
+          args: [--config, /config/configuration.yml]
+          env:
+            - {name: TZ, value: {{ authelia_timezone }}}
+            # Secrets are read from files, never put into the config or the environment
+            - {name: AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE, value: /secrets/jwt-secret}
+            - {name: AUTHELIA_SESSION_SECRET_FILE, value: /secrets/session-secret}
+            - {name: AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE, value: /secrets/storage-encryption-key}
+            - {name: AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE, value: /secrets/smtp-password}
+            - {name: AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE, value: /secrets/oidc-hmac-secret}
+            # Lets the config read the OIDC key and client hash from /secrets (`secret` function)
+            - {name: X_AUTHELIA_CONFIG_FILTERS, value: template}
+          ports:
+            - {name: http, containerPort: 9091}
+          startupProbe:
+            httpGet: {path: /api/health, port: http}
+            periodSeconds: 3
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: {path: /api/health, port: http}
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            # Each login hashes with argon2id (64 MiB), so leave room above the idle ~30 MiB
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {memory: 512Mi}
+          volumeMounts:
+            - {name: config, mountPath: /config/configuration.yml, subPath: configuration.yml, readOnly: true}
+            - {name: users, mountPath: /config/users, readOnly: true}
+            - {name: secrets, mountPath: /secrets, readOnly: true}
+            - {name: data, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: config
+          configMap: {name: authelia}
+        - name: users-src
+          secret: {secretName: authelia-users}
+        - name: users
+          emptyDir: {}
+        - name: secrets
+          secret: {secretName: authelia}
+        - name: data
+          persistentVolumeClaim: {claimName: authelia-data}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authelia
+  namespace: authelia
+spec:
+  selector: {app: authelia}
+  ports:
+    - {name: http, port: 9091, targetPort: http}
+---
+# After login Authelia sends the browser back to the app; without this the browser
+# passes "Referer: {{ authelia_url }}/" along, and apps with strict CSRF protection
+# reject the request as cross-site. The portal never needs a referrer.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: no-referrer
+  namespace: authelia
+spec:
+  headers:
+    # Replaces Authelia's own "strict-origin-when-cross-origin" (applied after the
+    # response, so it overrides the backend's header)
+    customResponseHeaders:
+      Referrer-Policy: no-referrer
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: authelia
+  namespace: authelia
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: authelia-no-referrer@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: {{ authelia_url | regex_replace('^https://', '') }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: authelia, port: {number: 9091}}

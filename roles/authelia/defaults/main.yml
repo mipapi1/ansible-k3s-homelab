@@ -1,0 +1,30 @@
+---
+# https://github.com/authelia/authelia/releases
+authelia_image: ghcr.io/authelia/authelia:4.39.28@sha256:bd97cff4fcbf715b5ff1f9ae286afbe6033afce385302520b0368122d43a6f54
+# Session store; https://hub.docker.com/_/redis
+authelia_redis_image: docker.io/library/redis:8.2.3-alpine@sha256:08ad0b1d280850169a790dba1393ff7a90aef951fc19632cf4d3ce4f78e679ba
+
+# Login portal; every protected app redirects here
+authelia_url: "https://auth.{{ homelab_domain }}"
+# Session cookie covers all subdomains, so one login works for every protected app
+authelia_cookie_domain: "{{ homelab_domain }}"
+# Shown in authenticator apps next to the user name
+authelia_totp_issuer: "{{ authelia_cookie_domain }}"
+# Timezone of the log timestamps
+authelia_timezone: "{{ homelab_timezone | default('UTC') }}"
+
+# Sender for 2FA registration codes. The password comes from Vault (smtp-password in
+# files/external-secrets.yaml).
+authelia_smtp_address: "submission://smtp.example.com:587"
+authelia_smtp_username: "noreply@{{ homelab_domain }}"
+authelia_smtp_sender: "Authelia <{{ authelia_smtp_username }}>"
+
+# Headlamp's sign-in callback (OpenID Connect client "headlamp"; see the headlamp role)
+authelia_headlamp_redirect_uri: "https://headlamp.{{ homelab_domain }}/oidc-callback"
+
+# Apps behind Authelia. Each gets an access rule: group `admins` or group `app-<name>`
+# may open <name>.<authelia_cookie_domain> (with 2FA). Give a user an app with
+#   files/authelia-user.sh groups <user> +app-<name>
+# A new app also needs the forwardAuth middleware on its Ingress. Group `admins` gets
+# every protected app, listed here or not.
+authelia_apps: []

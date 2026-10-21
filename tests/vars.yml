@@ -1,0 +1,14 @@
+---
+# Values for tests/render.yml (extra vars, so they win over the role defaults)
+homelab_domain: example.com
+homelab_timezone: Europe/Berlin
+homelab_node_cidrs: [192.168.20.11/32, 192.168.20.12/32, 192.168.20.13/32]
+argocd_apps_repo: https://git.example.com/you/cluster.git
+registry_mirror_username: ci-bot
+registry_mirror_password: not-a-real-token
+k3s_oidc_issuer_ip: 192.168.20.10
+authelia_apps: [grafana-public, wiki]
+monitoring_proxmox: true
+monitoring_pve_target: 192.168.10.11
+monitoring_opnsense_node_exporter: true
+monitoring_opnsense_target: "192.168.20.1:9100"

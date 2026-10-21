@@ -1,0 +1,13 @@
+---
+# https://code.forgejo.org/forgejo-helm/forgejo-helm
+# Chart settings live in ../templates/values.yaml.j2, secrets in ../files/external-secrets.yaml
+forgejo_chart_version: "17.2.0"
+
+forgejo_host: "git.{{ homelab_domain }}"
+forgejo_admin_email: "admin@{{ homelab_domain }}"
+forgejo_storage_size: 20Gi
+# Hosts that repository imports and push mirrors may connect to
+forgejo_migrations_allowed_domains: "github.com,*.github.com,gitlab.com,*.gitlab.com"
+# Forgejo user whose token (Vault k8s/argocd/forgejo, key token) Argo CD reads the apps
+# repo with; create it with read access to that repo only
+forgejo_argocd_username: argocd

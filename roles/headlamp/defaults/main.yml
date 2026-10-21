@@ -1,0 +1,13 @@
+---
+# https://github.com/kubernetes-sigs/headlamp/releases
+# Chart settings live in ../templates/values.yaml.j2 (the image is pinned there)
+headlamp_chart_version: "0.45.0"
+
+headlamp_host: "headlamp.{{ homelab_domain }}"
+# Shown as the cluster name in the UI
+headlamp_cluster_name: homelab
+# Authelia (OpenID Connect issuer); must match k3s_oidc_issuer
+headlamp_oidc_issuer: "https://auth.{{ homelab_domain }}"
+# Kubelet health probes come from the nodes' own addresses, which the NetworkPolicy must
+# allow. Default: every k3s_cluster host, assuming inventory names are IP addresses.
+headlamp_node_cidrs: "{{ homelab_node_cidrs | default(groups['k3s_cluster'] | map('regex_replace', '$', '/32') | list) }}"

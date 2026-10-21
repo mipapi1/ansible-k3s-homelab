@@ -1,0 +1,12 @@
+---
+# https://github.com/argoproj/argo-helm/tree/main/charts/argo-cd
+# Chart settings live in ../templates/values.yaml.j2
+argocd_chart_version: "10.10.0"
+# Ingress host and the URLs Argo CD generates
+argocd_host: "argocd.{{ homelab_domain }}"
+
+# GitOps: every directory under apps/ in argocd_apps_repo (required, set in the
+# inventory; also used by the forgejo role) becomes an Argo CD Application (same name,
+# deployed to a namespace of the same name).
+argocd_apps_revision: main
+argocd_apps_path: apps

@@ -1,0 +1,65 @@
+# Helm values for the forgejo chart (version pinned in ../defaults/main.yml), rendered
+# by Ansible.
+# Only what differs from the chart defaults; full reference:
+#   helm show values oci://code.forgejo.org/forgejo-helm/forgejo --version <forgejo_chart_version>
+#   app.ini keys: https://forgejo.org/docs/latest/admin/config-cheat-sheet/
+
+# Git over HTTPS only: proxy (TLS) -> Traefik -> Forgejo
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: {{ forgejo_host }}
+      paths:
+        - path: /
+          pathType: Prefix
+          port: http
+
+# Repositories, attachments and packages (Longhorn, the default StorageClass)
+persistence:
+  size: {{ forgejo_storage_size }}
+
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {memory: 1Gi}
+
+gitea:
+  # Break-glass admin from Vault; daily work happens in a normal account.
+  admin:
+    existingSecret: forgejo-admin
+    email: {{ forgejo_admin_email }}
+    # The password in Vault is the source of truth; it is re-applied on every start
+    passwordMode: keepUpdated
+
+  # Secret app.ini values (database password, signing/encryption keys) from Vault
+  additionalConfigSources:
+    - secret:
+        secretName: forgejo-app-ini
+
+  config:
+    APP_NAME: Forgejo
+    server:
+      DOMAIN: {{ forgejo_host }}
+      ROOT_URL: https://{{ forgejo_host }}/
+      DISABLE_SSH: true
+    database:
+      DB_TYPE: postgres
+      HOST: forgejo-db-rw:5432
+      NAME: forgejo
+      USER: forgejo
+      SSL_MODE: require
+      MAX_OPEN_CONNS: 20
+    service:
+      DISABLE_REGISTRATION: true
+      REQUIRE_SIGNIN_VIEW: true
+    session:
+      COOKIE_SECURE: true
+    # Imports and push mirrors: these hosts only
+    migrations:
+      # GitHub imports also call api.github.com (metadata) besides github.com (git)
+      ALLOWED_DOMAINS: "{{ forgejo_migrations_allowed_domains }}"
+    # Webhooks (e.g. to Argo CD) may only call in-cluster services
+    webhook:
+      ALLOWED_HOST_LIST: "*.svc.cluster.local,*.svc"
+    actions:
+      ENABLED: true
