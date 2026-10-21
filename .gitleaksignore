@@ -1,0 +1,2 @@
+# False positive: the words "Proxmox/Longhorn/Traefik" in the README's roles table
+34638933259d52a9c6587d20f55107c2cefe2290:README.md:generic-api-key:37

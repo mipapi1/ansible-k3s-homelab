@@ -34,7 +34,7 @@ why things are set the way they are, including what broke before they were.
 | `forgejo` | Forgejo with its PostgreSQL, all keys from Vault, Actions on; gives Argo CD read access | control node |
 | `authelia` | Login portal with 2FA (Redis sessions, users in Vault), OpenID Connect provider for Headlamp and kubectl | control node |
 | `k3s_oidc` | API server trusts Authelia's ID tokens; group `admins` = cluster-admin. Rolling k3s restart | servers, one at a time |
-| `monitoring` | VictoriaMetrics stack, Grafana behind Authelia, Proxmox/Longhorn/Traefik scrapes, alert rules, dashboards | control node |
+| `monitoring` | VictoriaMetrics stack, Grafana behind Authelia, scrapes of Proxmox, Longhorn and Traefik, alert rules, dashboards | control node |
 | `headlamp` | Kubernetes UI with Authelia sign-in, plus a break-glass token | control node |
 | `registry_mirror` | containerd pulls docker.io/ghcr.io/lscr.io images from your own registry first, upstream as fallback. Rolling k3s restart | every node, one at a time |
 
