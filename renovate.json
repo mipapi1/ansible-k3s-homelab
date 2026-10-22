@@ -4,6 +4,16 @@
   "extends": [
     "config:recommended"
   ],
+  "schedule": [
+    "* 0-5 * * 1"
+  ],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "labels": [
+    "dependencies"
+  ],
+  "automerge": false,
+  "dependencyDashboard": true,
   "enabledManagers": [
     "custom.regex",
     "ansible-galaxy",
@@ -70,6 +80,18 @@
     }
   ],
   "packageRules": [
+    {
+      "description": "GitHub Actions: one PR for all minor and patch updates",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest"
+      ],
+      "groupName": "GitHub Actions"
+    },
     {
       "description": "galaxy.yml declares minimum versions for users of the collection; leave them alone",
       "matchManagers": [
