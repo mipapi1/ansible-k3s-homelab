@@ -1,0 +1,161 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Version updates for this collection: Helm chart and image pins in roles/*/defaults, the example requirements, and CI.",
+  "extends": [
+    "config:recommended"
+  ],
+  "schedule": [
+    "* 0-5 * * 1"
+  ],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "labels": [
+    "dependencies"
+  ],
+  "automerge": false,
+  "dependencyDashboard": true,
+  "enabledManagers": [
+    "custom.regex",
+    "ansible-galaxy",
+    "github-actions"
+  ],
+  "ignorePaths": [
+    "**/node_modules/**"
+  ],
+  "customManagers": [
+    {
+      "description": "Chart versions in role defaults, annotated with a '# renovate:' comment on the line above",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^roles/[^/]+/defaults/main\\.yml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\n[a-z0-9_]+_version: \"(?<currentValue>[^\"]+)\""
+      ]
+    },
+    {
+      "description": "Images in role defaults, written as name:tag@sha256:digest",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^roles/[^/]+/defaults/main\\.yml$/"
+      ],
+      "matchStrings": [
+        "[a-z0-9_]+_image: (?<depName>[a-z0-9.\\-/]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "ansible-core installed by CI",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "pip install ansible-core==(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "pypi",
+      "depNameTemplate": "ansible-core"
+    },
+    {
+      "description": "Upstream k3s-ansible installed by CI from git",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "git\\+https://github\\.com/(?<depName>[^/]+/[^/.]+)\\.git,(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "description": "Container images run by CI steps (docker run)",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "docker run [^\\n]*?(?<depName>(?:ghcr\\.io|docker\\.io)/[a-z0-9.\\-/]+):(?<currentValue>v?[0-9][^\\s@]*)"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "GitHub Actions: one PR for all minor and patch updates",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest"
+      ],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "galaxy.yml declares minimum versions for users of the collection; leave them alone",
+      "matchManagers": [
+        "ansible-galaxy"
+      ],
+      "matchFileNames": [
+        "galaxy.yml"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "The example requirements pin this collection's own release; bump them when a release is cut",
+      "matchManagers": [
+        "ansible-galaxy"
+      ],
+      "matchPackageNames": [
+        "/mipapi1/ansible-k3s-homelab/"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "k3s-ansible is installed in two places; update them together",
+      "matchPackageNames": [
+        "/k3s-io/k3s-ansible/"
+      ],
+      "groupName": "k3s-ansible"
+    },
+    {
+      "description": "New runner images (ubuntu-XX.04) can break the CI steps: wait for approval on the Dependency Dashboard",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDepNames": [
+        "ubuntu"
+      ],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Major chart and image updates can change values or need migrations: wait for approval on the Dependency Dashboard",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Longhorn only supports upgrading one minor version at a time",
+      "matchPackageNames": [
+        "longhorn"
+      ],
+      "separateMultipleMinor": true,
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Redis majors change persistence and licensing; review by hand",
+      "matchPackageNames": [
+        "docker.io/library/redis"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
+    }
+  ]
+}

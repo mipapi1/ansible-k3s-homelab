@@ -1,5 +1,6 @@
 ---
 # https://github.com/longhorn/longhorn/releases
+# renovate: datasource=helm depName=longhorn registryUrl=https://charts.longhorn.io
 longhorn_chart_version: "1.13.0"
 # 2 copies of every volume: survives one node failure, uses a third less disk than 3
 longhorn_replica_count: 2

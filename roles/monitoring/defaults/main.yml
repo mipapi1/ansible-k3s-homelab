@@ -1,6 +1,7 @@
 ---
 # https://github.com/VictoriaMetrics/helm-charts/tree/master/charts/victoria-metrics-k8s-stack
 # Chart settings live in ../templates/values.yaml.j2
+# renovate: datasource=helm depName=victoria-metrics-k8s-stack registryUrl=https://victoriametrics.github.io/helm-charts/
 monitoring_chart_version: "0.95.0"
 
 monitoring_grafana_host: "grafana.{{ homelab_domain }}"

@@ -1,6 +1,7 @@
 ---
 # https://github.com/argoproj/argo-helm/tree/main/charts/argo-cd
 # Chart settings live in ../templates/values.yaml.j2
+# renovate: datasource=helm depName=argo-cd registryUrl=https://argoproj.github.io/argo-helm
 argocd_chart_version: "10.10.0"
 # Ingress host and the URLs Argo CD generates
 argocd_host: "argocd.{{ homelab_domain }}"
