@@ -1,6 +1,7 @@
 ---
 # https://code.forgejo.org/forgejo-helm/forgejo-helm
 # Chart settings live in ../templates/values.yaml.j2, secrets in ../files/external-secrets.yaml
+# renovate: datasource=docker depName=code.forgejo.org/forgejo-helm/forgejo
 forgejo_chart_version: "17.2.0"
 
 forgejo_host: "git.{{ homelab_domain }}"

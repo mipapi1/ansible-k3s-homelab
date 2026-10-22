@@ -1,6 +1,7 @@
 ---
 # https://github.com/kubernetes-sigs/headlamp/releases
 # Chart settings live in ../templates/values.yaml.j2 (the image is pinned there)
+# renovate: datasource=helm depName=headlamp registryUrl=https://kubernetes-sigs.github.io/headlamp/
 headlamp_chart_version: "0.45.0"
 
 headlamp_host: "headlamp.{{ homelab_domain }}"

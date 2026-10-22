@@ -1,3 +1,4 @@
 ---
 # https://github.com/kubernetes-csi/csi-driver-nfs/tree/master/charts
+# renovate: datasource=helm depName=csi-driver-nfs registryUrl=https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
 nfs_csi_chart_version: "4.13.4"
