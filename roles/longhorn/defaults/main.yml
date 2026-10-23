@@ -13,6 +13,14 @@ longhorn_concurrent_rebuilds_per_node: 1
 # replica). 150% lets reservations exceed the disk; real use stays guarded by Longhorn's
 # 25% minimum free space and the LonghornNodeStorageLow alert (monitoring role).
 longhorn_storage_over_provisioning: 150
+# Spread each volume's replicas over the nodes (Longhorn default: disabled). Without it,
+# replicas rebuilt after a node outage stay on the nodes that took them: on 2026-10-23 one
+# node held 2 of 48 replicas while the other two passed 80% disk use.
+longhorn_replica_auto_balance: best-effort
+# Delete replica data that no volume uses any more (left behind by failed or moved
+# replicas; 22 such directories, ~20 GB, had piled up on one node by 2026-10-23).
+# Volumes keep their live replicas and the nightly backups.
+longhorn_orphan_auto_deletion: replica-data
 # Backups go to the NAS share in nfs_server/nfs_share (Longhorn creates a backupstore/
 # folder in the export); empty without nfs_server. Many NAS only offer NFSv3, but
 # Longhorn defaults to NFSv4, so force v3.

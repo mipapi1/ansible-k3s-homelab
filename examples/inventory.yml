@@ -29,6 +29,11 @@ k3s_cluster:
       etcd-arg:
         - heartbeat-interval=500
         - election-timeout=5000
+      # Remove unused images before Longhorn's 25% minimum free space is reached
+      # (kubelet defaults: 85/80)
+      kubelet-arg:
+        - image-gc-high-threshold=70
+        - image-gc-low-threshold=60
 
     # mipapi1.k3s_homelab: shared settings
     homelab_domain: example.com
