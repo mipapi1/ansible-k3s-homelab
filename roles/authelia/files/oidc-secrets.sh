@@ -8,6 +8,10 @@
 #   ./oidc-secrets.sh            # first time
 #   ./oidc-secrets.sh --rotate   # replace them: Headlamp/kubectl sessions end, sign in again
 #   ./oidc-secrets.sh --rehash   # only re-hash the existing Headlamp secret (no sign-out)
+#   ./oidc-secrets.sh --app <name> [--rotate]
+#                                # client secret for an app in authelia_oidc_apps:
+#                                # <name>-secret-hash in secret/k8s/authelia/oidc, plain
+#                                # client-secret in secret/k8s/<name>/oidc for the app
 #
 # PBKDF2, not argon2id: Authelia checks the client secret on every token request, and
 # Headlamp sends a burst of parallel refreshes when its token expires; argon2id's 64 MiB
@@ -34,6 +38,25 @@ def client_hash(secret):
     key = hashlib.pbkdf2_hmac("sha512", secret.encode(), salt, n, 64)
     return f"$pbkdf2-sha512${n}${ab64(salt)}${ab64(key)}"
 '
+
+if [ "${1:-}" = "--app" ]; then
+  app="${2:-}"
+  [[ "$app" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "usage: $0 --app <name> [--rotate] (lowercase name from authelia_oidc_apps)"
+  vault kv get "$AUTHELIA_PATH" >/dev/null 2>&1 || die "$AUTHELIA_PATH doesn't exist yet: run $0 first"
+  app_path="secret/k8s/$app/oidc"
+  if [ "${3:-}" != "--rotate" ] && vault kv get "$app_path" >/dev/null 2>&1; then
+    die "$app_path already exists; use --app $app --rotate to replace it"
+  fi
+  app_secret="$(python3 -c 'import secrets, string; a = string.ascii_letters + string.digits; print("".join(secrets.choice(a) for _ in range(64)), end="")')"
+  [ -n "$app_secret" ] || die "generating the secret failed"
+  CLIENT_SECRET="$app_secret" python3 -c "$HASH_PY"'
+print(client_hash(os.environ["CLIENT_SECRET"]), end="")' \
+    | vault kv patch "$AUTHELIA_PATH" "$app-secret-hash=-" >/dev/null || die "writing the hash failed"
+  printf '%s' "$app_secret" | vault kv put "$app_path" client-secret=- >/dev/null || die "writing $app_path failed"
+  unset app_secret
+  echo "saved $app-secret-hash in $AUTHELIA_PATH and client-secret in $app_path"
+  exit 0
+fi
 
 if [ "${1:-}" = "--rehash" ]; then
   CLIENT_SECRET="$(vault kv get -field=client-secret "$HEADLAMP_PATH")" python3 -c "$HASH_PY"'

@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.2.0
+
+- authelia: `authelia_oidc_apps` adds OpenID Connect clients for more apps ("Log in with
+  Authelia"); each may be used by group `admins` and group `app-<name>`, with 2FA. Client
+  secrets come from `files/oidc-secrets.sh --app <name>`; the role waits until they reach the
+  cluster before restarting Authelia.
+- authelia: every key in `secret/k8s/authelia/oidc` is synced (as `oidc-<key>`), so new client
+  hashes need no ExternalSecret change
+
 ## v1.1.0
 
 - longhorn: spread replicas over the nodes (`longhorn_replica_auto_balance: best-effort`)

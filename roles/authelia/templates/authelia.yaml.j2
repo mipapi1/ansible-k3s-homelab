@@ -94,6 +94,13 @@ identity_providers:
         rules:
           - policy: two_factor
             subject: 'group:admins'
+{% for app in authelia_oidc_apps %}
+      app-{{ app.name }}:
+        default_policy: deny
+        rules:
+          - policy: two_factor
+            subject: ['group:admins', 'group:app-{{ app.name }}']
+{% endfor %}
     claims_policies:
       # Kubernetes reads the user and groups from the ID token itself (Authelia otherwise
       # keeps those claims for the userinfo endpoint)
@@ -132,6 +139,23 @@ identity_providers:
         response_types: [code]
         claims_policy: kubernetes
         token_endpoint_auth_method: none
+{% for app in authelia_oidc_apps %}
+      - client_id: {{ app.name }}
+        client_name: {{ app.client_name | default(app.name) }}
+        client_secret: {% raw %}{{ secret "/secrets/oidc-{% endraw %}{{ app.name }}{% raw %}-secret-hash" | msquote }}{% endraw %}
+
+        public: false
+        authorization_policy: app-{{ app.name }}
+        consent_mode: pre-configured
+        pre_configured_consent_duration: 1y
+        require_pkce: true
+        pkce_challenge_method: S256
+        redirect_uris: {{ app.redirect_uris | to_json }}
+        scopes: [openid, profile, email, groups]
+        grant_types: [authorization_code]
+        response_types: [code]
+        token_endpoint_auth_method: client_secret_basic
+{% endfor %}
 {% endset %}
 apiVersion: v1
 kind: ConfigMap
