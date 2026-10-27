@@ -40,6 +40,27 @@
   become: false
   run_once: true
 
+# The config reads each OpenID app's client secret hash at startup: without it Authelia
+# won't start. Run files/oidc-secrets.sh --app <name> first.
+- name: Wait for the OpenID app secrets
+  kubernetes.core.k8s_info:
+    context: "{{ cluster_context }}"
+    kind: Secret
+    namespace: authelia
+    name: authelia
+  register: authelia_oidc_secret
+  until: >-
+    authelia_oidc_secret.resources | length > 0 and
+    (authelia_oidc_apps | map(attribute='name') | map('regex_replace', '^', 'oidc-') | map('regex_replace', '$', '-secret-hash')
+     | difference(authelia_oidc_secret.resources[0].data.keys() | list) | length == 0)
+  retries: 12
+  delay: 5
+  when: authelia_oidc_apps | length > 0
+  no_log: true
+  delegate_to: localhost
+  become: false
+  run_once: true
+
 - name: Deploy Authelia
   kubernetes.core.k8s:
     context: "{{ cluster_context }}"

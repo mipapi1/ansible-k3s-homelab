@@ -22,6 +22,16 @@ authelia_smtp_sender: "Authelia <{{ authelia_smtp_username }}>"
 # Headlamp's sign-in callback (OpenID Connect client "headlamp"; see the headlamp role)
 authelia_headlamp_redirect_uri: "https://headlamp.{{ homelab_domain }}/oidc-callback"
 
+# More apps that sign in with OpenID Connect ("Log in with Authelia"). Each gets a client
+# `<name>` that group `admins` and group `app-<name>` may use, with 2FA. Its secret: run
+#   files/oidc-secrets.sh --app <name>
+# (hash in secret/k8s/authelia/oidc, plain secret in secret/k8s/<name>/oidc for the app).
+#   authelia_oidc_apps:
+#     - name: budget
+#       client_name: Budget
+#       redirect_uris: ["https://budget.example.com/openid/callback"]
+authelia_oidc_apps: []
+
 # Apps behind Authelia. Each gets an access rule: group `admins` or group `app-<name>`
 # may open <name>.<authelia_cookie_domain> (with 2FA). Give a user an app with
 #   files/authelia-user.sh groups <user> +app-<name>

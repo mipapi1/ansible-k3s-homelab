@@ -8,6 +8,10 @@ registry_mirror_username: ci-bot
 registry_mirror_password: not-a-real-token
 k3s_oidc_issuer_ip: 192.168.20.10
 authelia_apps: [grafana-public, wiki]
+authelia_oidc_apps:
+  - name: budget
+    client_name: Budget
+    redirect_uris: ["https://budget.example.com/openid/callback"]
 monitoring_proxmox: true
 monitoring_pve_target: 192.168.10.11
 monitoring_opnsense_node_exporter: true
