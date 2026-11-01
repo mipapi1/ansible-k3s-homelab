@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.1
+
+- monitoring: VMSingle memory limit 1Gi -> 2Gi (was OOMKilled at ~244k series)
+
 ## v1.2.0
 
 - authelia: `authelia_oidc_apps` adds OpenID Connect clients for more apps ("Log in with
