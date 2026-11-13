@@ -32,3 +32,13 @@ longhorn_backup_target: "{{ ('nfs://' ~ nfs_server ~ ':' ~ nfs_share ~ '?nfsOpti
 # Nightly backup of every volume (RecurringJob "backup-nightly", group "default")
 longhorn_backup_cron: "30 3 * * *"
 longhorn_backup_retain: 7
+# Weekly trim of every mounted volume (RecurringJob "trim-weekly", group "default").
+# Without it, space from deleted files is never given back: on 2026-11-13 Plex's config
+# volume held 2.9G of files but took 20G on each replica node. Sunday 02:00, before the
+# nightly backup; one volume at a time; volumes stay mounted (no restarts).
+longhorn_trim_cron: "0 2 * * 0"
+# A trim can't free blocks still held by a snapshot, and the nightly backup always leaves
+# one on the volume. This lets the trim mark that snapshot chain removed so the space is
+# really freed; the backups on the NAS are kept, and the next backup still only uploads
+# changed blocks.
+longhorn_remove_snapshots_during_trim: true

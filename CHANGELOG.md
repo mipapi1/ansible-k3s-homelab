@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3.0
+
+- longhorn: weekly filesystem trim of every volume (RecurringJob `trim-weekly`,
+  `longhorn_trim_cron`, Sunday 02:00) and `removeSnapshotsDuringFilesystemTrim`
+  (`longhorn_remove_snapshots_during_trim`), so space from deleted files is given back even
+  though the nightly backup keeps a snapshot
+
 ## v1.2.2
 
 - monitoring: ntfy pushes carry at most 5 alerts (`max_alerts`); bigger groups went over
