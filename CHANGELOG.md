@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.2
+
+- monitoring: ntfy pushes carry at most 5 alerts (`max_alerts`); bigger groups went over
+  ntfy's message size limit and were rejected (email still gets every alert)
+
 ## v1.2.1
 
 - monitoring: VMSingle memory limit 1Gi -> 2Gi (was OOMKilled at ~244k series)
