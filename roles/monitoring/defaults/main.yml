@@ -26,6 +26,32 @@ monitoring_smtp_from: "Homelab <{{ monitoring_smtp_username }}>"
 # whatever still fires at its end is sent then. Times in monitoring_timezone.
 monitoring_mute_window: {start: "03:00", end: "04:00"}
 monitoring_timezone: "{{ homelab_timezone | default('UTC') }}"
+# How often a problem is announced (aim: 2 messages, firing and resolved): one message per
+# alert name (every namespace and pod with that alert in the same message), sent after
+# waiting group_wait for the rest of an outage's alerts to arrive. Changes to the group
+# (more pods, resolved) go out at most every group_interval, so a problem shorter than that
+# gives exactly two messages; the "resolved" one can come up to group_interval late. An
+# alert that keeps firing is announced again only after repeat_interval (Alertmanager keeps
+# its send log 5 days, so longer means "about 5 days").
+monitoring_alert_group_by: [alertname]
+monitoring_alert_group_wait: 2m
+monitoring_alert_group_interval: 6h
+monitoring_alert_repeat_interval: 168h
+# While one of these node alerts fires, the per-app alerts it causes (pods not ready, replicas
+# missing, ...) are not sent: the node alert explains them.
+monitoring_node_alerts: [KubeNodeNotReady, KubeNodeUnreachable, KubeNodePressure, KubeNodeEviction]
+monitoring_node_symptom_alerts:
+  - KubePodNotReady
+  - KubePodCrashLooping
+  - KubeContainerWaiting
+  - KubeDeploymentReplicasMismatch
+  - KubeDeploymentRolloutStuck
+  - KubeStatefulSetReplicasMismatch
+  - KubeDaemonSetRolloutStuck
+  - KubeDaemonSetMisScheduled
+  - KubeJobFailed
+  - KubePdbNotEnoughHealthyPods
+  - TooManyRestarts
 
 # Proxmox: pve-exporter asks one Proxmox host for the whole cluster (all nodes, VMs,
 # storage) with a read-only token from Vault:
