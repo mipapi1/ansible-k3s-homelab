@@ -1,0 +1,26 @@
+flowchart LR
+  subgraph prep["1. Nodes and k3s"]
+    direction TB
+    start([ansible-playbook site.yml]) --> pre[Preflight<br/>helm, kubectl here]
+    pre --> nodes[nfs, igpu<br/>every node]
+    nodes --> k3s[k3s<br/>upstream k3s-ansible]
+  end
+  subgraph addons["2. Add-ons, each behind install_&lt;role&gt;"]
+    direction TB
+    storage[nfs_csi, longhorn<br/>storage, backups] --> gitops[argocd, external_secrets,<br/>cloudnative_pg, forgejo]
+    gitops --> signin[authelia, then k3s_oidc<br/>rolling k3s restart]
+    signin --> mon[monitoring, headlamp]
+    mon --> mirror[registry_mirror<br/>rolling k3s restart]
+  end
+  prep --> addons
+  addons --> done([Argo CD runs apps/*])
+
+  class start,done,pre muted
+  class nodes,k3s net
+  class storage data
+  class gitops ci
+  class signin gov
+  class mon obs
+  class mirror gov
+  class prep z-net
+  class addons z-ci

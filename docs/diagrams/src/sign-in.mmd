@@ -1,0 +1,24 @@
+flowchart TB
+  user[You]
+  subgraph web["Web UIs (authelia role)"]
+    traefik[Traefik] -->|forwardAuth,<br/>every request| portal[Authelia<br/>password + 2FA]
+    traefik -->|Remote-User header,<br/>NetworkPolicy: Traefik only| grafana[Grafana]
+    traefik --> app[Protected apps<br/>admins or app-&lt;name&gt;]
+  end
+  subgraph k8s["Kubernetes (k3s_oidc role)"]
+    headlamp[Headlamp] -->|as the user| authn[API server<br/>trusts Authelia's ID tokens]
+    kubectl[kubectl oidc-login] -->|as the user| authn
+    authn --> rbac[RBAC<br/>group admins = cluster-admin]
+  end
+  user -->|browser| traefik
+  user --> headlamp & kubectl
+  portal -.->|OIDC ID token| headlamp & kubectl
+
+  class user muted
+  class traefik,app net
+  class portal,authn sec
+  class rbac gov
+  class grafana,headlamp obs
+  class kubectl ci
+  class web z-sec
+  class k8s z-gov

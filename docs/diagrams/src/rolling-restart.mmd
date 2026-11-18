@@ -1,0 +1,19 @@
+flowchart LR
+  change{k3s config<br/>changed?}
+  change -->|no| noop([No restart])
+  change -->|yes| s1
+  subgraph loop["serial: 1, one server at a time"]
+    direction TB
+    s1[Restart k3s<br/>on this server] --> api[Wait for its API server<br/>includes its etcd]
+    api --> ready[Wait for the node<br/>to be Ready]
+    ready --> pause[Pause before<br/>the next server]
+  end
+  pause -->|next server| s1
+  pause --> done([etcd kept quorum<br/>the whole time])
+
+  class change gov
+  class noop,done muted
+  class s1,ready net
+  class api data
+  class pause gov
+  class loop z-gov

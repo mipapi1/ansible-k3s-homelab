@@ -1,0 +1,38 @@
+flowchart LR
+  you[You<br/>browser, kubectl, git push]
+  proxy[Reverse proxy<br/>TLS]
+  subgraph k3s["k3s cluster (3 servers, embedded etcd)"]
+    direction LR
+    traefik[Traefik]
+    authelia[Authelia<br/>2FA, OIDC provider]
+    api[k3s API server<br/>trusts Authelia tokens]
+    forgejo[Forgejo<br/>git, Actions, registry]
+    argo[Argo CD]
+    apps[apps/*<br/>one folder = one namespace]
+    ui[Grafana, Headlamp]
+    vm[VictoriaMetrics<br/>+ Alertmanager]
+    eso[External Secrets]
+    longhorn[(Longhorn<br/>2 replicas)]
+  end
+  vault[(Vault)]
+  nas[(NAS, NFS)]
+  notify[ntfy + email]
+
+  you --> proxy --> traefik
+  traefik -->|forwardAuth| authelia
+  traefik --> ui & apps
+  you -->|kubectl oidc-login| api
+  you -->|git push| forgejo
+  forgejo --> argo -->|deploys| apps
+  vm --> ui
+  vm -->|alerts| notify
+  eso -->|Kubernetes auth| vault
+  longhorn -->|nightly backups| nas
+
+  class you,proxy,notify muted
+  class authelia,api,eso,vault sec
+  class traefik,apps net
+  class forgejo,argo ci
+  class vm,ui obs
+  class longhorn,nas data
+  class k3s z-net
