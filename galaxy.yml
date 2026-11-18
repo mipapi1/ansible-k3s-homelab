@@ -17,6 +17,7 @@ dependencies:
 repository: https://github.com/mipapi1/ansible-k3s-homelab
 issues: https://github.com/mipapi1/ansible-k3s-homelab/issues
 build_ignore:
+  - docs/diagrams/node_modules
   - .github
   - examples
   - .gitignore

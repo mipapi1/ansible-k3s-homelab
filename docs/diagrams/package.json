@@ -1,0 +1,13 @@
+{
+  "name": "ansible-k3s-homelab-diagrams",
+  "private": true,
+  "type": "module",
+  "description": "Renders docs/diagrams/src/*.mmd into hand-drawn light and dark SVGs",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "12.2.0",
+    "svgo": "3.3.2"
+  }
+}

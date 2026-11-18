@@ -8,19 +8,18 @@ with 2FA (including `kubectl`), monitoring with alerts, storage and backups.
 It's the code running a real cluster (three Intel N100/N150 mini PCs). The comments say
 why things are set the way they are, including what broke before they were.
 
-```
-            ┌─────────────── k3s (3 servers, embedded etcd) ───────────────┐
- browser ─▶ │ Traefik ─▶ Authelia (2FA, OIDC) ─▶ Grafana, Headlamp, apps   │
- proxy/TLS  │                                                              │
-            │ Argo CD ◀── Forgejo (git, Actions, registry) ◀── you push    │
-            │   └─▶ apps/*  (one folder = one app = one namespace)         │
-            │ External Secrets ◀── Vault (outside the cluster)             │
-            │ Longhorn (2 replicas) ── nightly backups ──▶ NAS (NFS)       │
-            │ VictoriaMetrics + Alertmanager ──▶ ntfy + email              │
-            └──────────────────────────────────────────────────────────────┘
-```
+## What's inside
 
-## Roles
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/platform-overview.dark.svg">
+  <img alt="Platform overview: you reach the cluster through a reverse proxy and Traefik, Authelia guards the UIs and signs in kubectl, Forgejo feeds Argo CD, External Secrets reads Vault, Longhorn backs up to the NAS, alerts go to ntfy and email" src="docs/diagrams/platform-overview.light.svg">
+</picture>
+</p>
+
+<sub>🟥 sign-in and secrets &nbsp; 🟦 cluster and apps &nbsp; 🟩 storage &nbsp; 🟪 monitoring &nbsp; 🟧 git and GitOps &nbsp; 🟨 RBAC and rolling restarts. Sources and build: <a href="docs/diagrams">docs/diagrams</a>.</sub>
+
+### Roles
 
 | Role | What it does | Runs on |
 |---|---|---|
@@ -53,6 +52,13 @@ ansible-playbook site.yml                 # everything
 ansible-playbook site.yml --tags monitoring   # one add-on
 ansible-playbook site.yml --check --diff  # what would change
 ```
+
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/install-order.dark.svg">
+  <img alt="Install order: preflight, node prep and k3s, then the add-on roles in order, two of them with rolling k3s restarts" src="docs/diagrams/install-order.light.svg">
+</picture>
+</p>
 
 `examples/site.yml` installs k3s with the upstream
 [k3s-io/k3s-ansible](https://github.com/k3s-io/k3s-ansible) collection, then the roles,
@@ -95,6 +101,13 @@ vault write auth/kubernetes/role/external-secrets \
   policies=external-secrets ttl=1h
 ```
 
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/secrets.dark.svg">
+  <img alt="Secrets: Ansible reads Vault with your login; in the cluster External Secrets uses Kubernetes auth with a read-only policy to turn Vault entries into Kubernetes Secrets" src="docs/diagrams/secrets.light.svg">
+</picture>
+</p>
+
 Entries the roles expect (under `secret/`):
 
 | Path | Keys | Used by |
@@ -134,6 +147,24 @@ a user list without an active admin).
 - **Image mirror with fallback.** Manifests keep upstream image names; containerd tries
   your registry first and falls back to upstream on a miss, so the mirror can't stop pods
   from starting.
+
+How `k3s_oidc` and `registry_mirror` restart k3s:
+
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/rolling-restart.dark.svg">
+  <img alt="Rolling restart: if the k3s config changed, restart one server, wait for its API server and etcd, wait for the node to be Ready, pause, then the next server" src="docs/diagrams/rolling-restart.light.svg">
+</picture>
+</p>
+
+How sign-in works, for the web UIs and for Kubernetes:
+
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/sign-in.dark.svg">
+  <img alt="Sign-in: Traefik asks Authelia on every request to a protected UI; Headlamp and kubectl get an ID token from Authelia and act as the user, with RBAC from the user's groups" src="docs/diagrams/sign-in.light.svg">
+</picture>
+</p>
 
 ## Testing
 
